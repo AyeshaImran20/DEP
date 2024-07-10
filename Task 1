@@ -1,0 +1,106 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <curlpp/cURLpp.hpp>
+#include <curlpp/Options.hpp>
+#include <nlohmann/json.hpp>
+
+using namespace std;
+using json = nlohmann::json;
+
+// Location class
+class Location {
+public:
+    string name;
+    double latitude;
+    double longitude;
+
+    Location(const string& n, double lat, double lon) : name(n), latitude(lat), longitude(lon) {}
+};
+
+// WeatherForecastingSystem class
+class WeatherForecastingSystem {
+private:
+    string apiKey; // Your OpenWeatherMap API key
+
+public:
+    WeatherForecastingSystem(const string& api_key) : apiKey(api_key) {}
+
+    void fetchWeatherForecast(const Location& location) {
+        string apiUrl = "https://api.openweathermap.org/data/2.5/onecall?";
+        apiUrl += "lat=" + to_string(location.latitude);
+        apiUrl += "&lon=" + to_string(location.longitude);
+        apiUrl += "&exclude=minutely,hourly,daily,alerts"; // Exclude unnecessary parts
+        apiUrl += "&appid=" + apiKey;
+
+        try {
+            curlpp::Cleanup cleanup;
+            curlpp::Easy request;
+            request.setOpt(new curlpp::options::Url(apiUrl));
+            
+            ostringstream responseStream;
+            curlpp::options::WriteStream writeStream(&responseStream);
+            request.setOpt(writeStream);
+
+            cout << "Fetching weather forecast for: " << location.name << endl;
+            request.perform();
+
+            // Parse JSON response
+            json jsonResponse = json::parse(responseStream.str());
+
+            // Print out specific weather details (example: current temperature)
+            double temperature = jsonResponse["current"]["temp"];
+            cout << "Temperature: " << temperature << " K" << endl; // Temperature is in Kelvin by default
+        }
+        catch (curlpp::RuntimeError& e) {
+            cerr << "Runtime error: " << e.what() << endl;
+        }
+        catch (curlpp::LogicError& e) {
+            cerr << "Logic error: " << e.what() << endl;
+        }
+        catch (json::parse_error& e) {
+            cerr << "JSON parse error: " << e.what() << endl;
+        }
+    }
+};
+
+// LocationManager class
+class LocationManager {
+private:
+    vector<Location> locations;
+
+public:
+    void addLocation(const string& name, double latitude, double longitude) {
+        locations.push_back(Location(name, latitude, longitude));
+    }
+
+    void removeLocation(const string& name) {
+        locations.erase(remove_if(locations.begin(), locations.end(),
+            [&](const Location& loc) { return loc.name == name; }), locations.end());
+    }
+
+    void listLocations() const {
+        for (const auto& loc : locations) {
+            cout << "Name: " << loc.name << ", Latitude: " << loc.latitude << ", Longitude: " << loc.longitude << endl;
+        }
+    }
+};
+
+int main() {
+    // Initialize LocationManager
+    LocationManager locationManager;
+    locationManager.addLocation("New York", 40.7128, -74.0060);
+    locationManager.addLocation("Los Angeles", 34.0522, -118.2437);
+
+    cout << "List of Locations:" << endl;
+    locationManager.listLocations();
+    cout << endl;
+
+    // Initialize WeatherForecastingSystem with your OpenWeatherMap API key
+    string apiKey = "b8397a36a0d76746dccbb4ee7c3c2e8b";
+    WeatherForecastingSystem forecastingSystem(apiKey);
+
+
+    return 0;
+}
